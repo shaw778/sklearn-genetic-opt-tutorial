@@ -51,11 +51,11 @@ def main():
     callbacks = [
         ProgressBar(),
         ConsecutiveStopping(generations=4, metric="fitness"),
-        TimerStopping(total_seconds=120)  # Max 2 minutes safeguard
+        TimerStopping(total_seconds=120)  # Soft time budget
     ]
     print("  - ProgressBar(): Visual progress bar")
-    print("  - ConsecutiveStopping(generations=4): Halts if fitness stagnates for 4 rounds")
-    print("  - TimerStopping(total_seconds=120): Enforces strict compute budget")
+    print("  - ConsecutiveStopping(generations=4, metric='fitness'): Halts if population mean fitness stagnates for 4 rounds")
+    print("  - TimerStopping(total_seconds=120): Stops scheduling new batches after 120s; allows in-flight batch and refit to finish")
 
     # 4. Initialize and Fit GASearchCV
     print("\n[Step 4] Running Genetic Hyperparameter Optimization (GASearchCV)...")
