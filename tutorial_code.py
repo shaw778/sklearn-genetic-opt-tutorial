@@ -96,10 +96,10 @@ def main():
     print(f"  Test Accuracy : {acc_ga * 100:.2f}%")
     print(f"  Test ROC-AUC  : {roc_ga:.4f}")
 
-    # 5. Baseline Comparison: RandomizedSearchCV with equal evaluations
-    print("\n[Step 5] Running Baseline RandomizedSearchCV for Comparison...")
-    # Approximate equivalent number of evaluations
-    eval_count = min(len(ga_search.history["fitness"]), 40)
+    # 5. Baseline Comparison: RandomizedSearchCV with matched CV work
+    # Use cross_validate_calls from fit_stats_ to count actual cross-validation evaluations
+    cv_calls = ga_search.fit_stats_["cross_validate_calls"]
+    print(f"\n[Step 5] Running Baseline RandomizedSearchCV for Comparison ({cv_calls} matched CV calls)...")
     rand_param_dist = {
         "n_estimators": list(range(50, 351, 10)),
         "max_depth": list(range(3, 17)),
@@ -111,7 +111,7 @@ def main():
     rand_search = RandomizedSearchCV(
         estimator=base_estimator,
         param_distributions=rand_param_dist,
-        n_iter=eval_count,
+        n_iter=cv_calls,
         scoring="roc_auc",
         cv=cv,
         random_state=42,
@@ -128,14 +128,14 @@ def main():
     roc_rand = roc_auc_score(y_test, y_prob_rand)
 
     # 6. Summary Comparison Table
-    print("\n" + "=" * 70)
-    print("RESULTS COMPARISON")
-    print("=" * 70)
-    print(f"{'Method':<22} | {'Time (s)':<10} | {'CV ROC-AUC':<12} | {'Test Accuracy':<15} | {'Test ROC-AUC':<12}")
-    print("-" * 70)
-    print(f"{'RandomizedSearchCV':<22} | {duration_rand:<10.2f} | {rand_search.best_score_:<12.4f} | {acc_rand*100:<13.2f}% | {roc_rand:<12.4f}")
-    print(f"{'GASearchCV (Evolution)':<22} | {duration_ga:<10.2f} | {ga_search.best_score_:<12.4f} | {acc_ga*100:<13.2f}% | {roc_ga:<12.4f}")
-    print("=" * 70)
+    print("\n" + "=" * 80)
+    print("RESULTS COMPARISON (MATCHED CV WORK)")
+    print("=" * 80)
+    print(f"{'Method':<24} | {'CV Calls':<10} | {'Time (s)':<10} | {'CV ROC-AUC':<12} | {'Test Acc':<10} | {'Test ROC-AUC':<12}")
+    print("-" * 80)
+    print(f"{'RandomizedSearchCV':<24} | {cv_calls:<10} | {duration_rand:<10.2f} | {rand_search.best_score_:<12.4f} | {acc_rand*100:<9.2f}% | {roc_rand:<12.4f}")
+    print(f"{'GASearchCV (Early Stopped)':<24} | {cv_calls:<10} | {duration_ga:<10.2f} | {ga_search.best_score_:<12.4f} | {acc_ga*100:<9.2f}% | {roc_ga:<12.4f}")
+    print("=" * 80)
     print("\nDetailed Classification Report (GASearchCV Best Model):")
     print(classification_report(y_test, y_pred_ga, target_names=data.target_names))
 

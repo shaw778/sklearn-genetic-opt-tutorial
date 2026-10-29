@@ -40,9 +40,9 @@ python tutorial_code.py
 
 ## 📊 Benchmark Summary
 
-| Method | Evaluations / Generations | CV ROC-AUC | Test Accuracy | Test ROC-AUC | Compute Savings |
+| Method | CV Calls / Work | CV ROC-AUC | Test Accuracy | Test ROC-AUC | Compute Workload |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **RandomizedSearchCV** | 40 random samples | 0.9878 | 95.80% | 0.9945 | Baseline |
-| **GASearchCV (Evolution)** | 5 generations (85 candidates) | **0.9900** | **95.80%** | **0.9943** | **~53.6% vs planned budget** |
+| **RandomizedSearchCV** | 83 candidates (249 fold fits) | 0.9897 | 95.80% | 0.9941 | Matched Baseline Workload |
+| **GASearchCV (Early Stopped)** | 83 candidates (249 fold fits) | **0.9900** | **95.80%** | **0.9943** | **~53.6% estimated reduction vs. planned budget** |
 
 *See [article.md](./article.md) for full methodology, parameter spaces, and detailed classification reports.*

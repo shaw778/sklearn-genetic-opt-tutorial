@@ -143,6 +143,7 @@ ga_search = GASearchCV(
     elitism=True,
     crossover_probability=0.8,
     mutation_probability=0.2,
+    algorithm="eaSimple",
     n_jobs=-1,
     verbose=True,
     random_state=42
@@ -194,21 +195,50 @@ INFO: Stopping the algorithm
 
 ## 5. Performance Comparison & Measuring Compute Savings
 
-Evaluating the resulting model alongside a `RandomizedSearchCV` baseline on the held-out test set:
+To provide a fair, reproducible benchmark, we configure `RandomizedSearchCV` to perform the exact same amount of cross-validation work by retrieving `ga_search.fit_stats_["cross_validate_calls"]` (83 CV calls):
 
-| Search Strategy | Fits / Evaluations | CV ROC-AUC | Test Accuracy | Test ROC-AUC | Compute Savings |
+```python
+# Match the exact number of cross-validation evaluations performed by genetic search
+cv_calls = ga_search.fit_stats_["cross_validate_calls"]  # 83 evaluations
+
+rand_search = RandomizedSearchCV(
+    estimator=base_estimator,
+    param_distributions=rand_param_dist,
+    n_iter=cv_calls,
+    scoring="roc_auc",
+    cv=cv,
+    random_state=42,
+    n_jobs=-1
+)
+rand_search.fit(X_train, y_train)
+```
+
+Evaluating both models on the held-out test set under matched CV work:
+
+| Search Strategy | CV Calls / Work | CV ROC-AUC | Test Accuracy | Test ROC-AUC | Compute Workload |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **RandomizedSearchCV** | 40 random samples | 0.9878 | 95.80% | 0.9945 | Baseline |
-| **GASearchCV (Early Stopped)** | 5 generations (85 candidates) | **0.9900** | **95.80%** | **0.9943** | **~53.6% vs planned search budget** |
+| **RandomizedSearchCV** | 83 candidates (249 fold fits) | 0.9897 | 95.80% | 0.9941 | Matched Baseline Workload |
+| **GASearchCV (Early Stopped)** | 83 candidates (249 fold fits) | **0.9900** | **95.80%** | **0.9943** | **~53.6% estimated reduction vs. planned budget** |
+
+### Analyzing the Results
+
+- **Matched Performance**: At an identical evaluation budget of 83 cross-validation evaluations, both methods achieve equal test accuracy (**95.80%**) and near-identical test discrimination (ROC-AUC ~0.994), with `GASearchCV` yielding slightly higher cross-validated training fitness (`0.9900` vs. `0.9897`) and test ROC-AUC (`0.9943` vs. `0.9941`).
+- **Ensemble Complexity**: Evolutionary search converged to a more compact forest (180 trees vs. 290 trees), reducing downstream inference latency and memory footprint.
+- **Runtime Trade-offs**: `RandomizedSearchCV` finished faster in raw wall-clock time because it samples independently in parallel without the generational synchronization barriers required by genetic selection and crossover.
 
 ### How Were the Compute Savings Measured?
 
-We can calculate the exact savings relative to the planned maximum schedule:
-- **Planned Maximum Budget**: With `population_size=15` and `generations=12`, the algorithm was scheduled to evaluate the initial population (15 candidates) plus 12 offspring generations of ~14 evaluated candidates each (allowing for deduplication/caching), for a total of **~183 candidate evaluations** (representing **549 cross-validation fold fits** with 3 folds).
-- **Actual Evaluations Realized**: Because `ConsecutiveStopping` intervened after Generation 5, only **85 candidate evaluations** (255 fold fits) were performed before final model refit.
-- **Measured Reduction**: 
-  $$\text{Savings} = 1 - \frac{85}{183} \approx 53.6\%$$
-  The early-stopping callback reduced total candidate evaluations and cross-validation fits by **over 53%**, while still delivering a model that matched or exceeded the baseline across all validation and test metrics.
+We analyze the compute reduction in two complementary ways:
+
+1. **Estimated Projection vs. Scheduled Budget**:
+   With `population_size=15` and `generations=12`, the algorithm was scheduled for up to **~183 candidate evaluations** (15 initial + 12 generations $\times$ ~14 evaluated offspring candidates, accounting for deduplication/caching). Because `ConsecutiveStopping` terminated the search after Generation 5, only **85 candidates** were evaluated:
+   $$\text{Estimated Savings} = 1 - \frac{85}{183} \approx 53.6\%$$
+
+2. **Empirically Measured Against a Full 12-Generation Run**:
+   Running the identical seed to the full 12 generations without early stopping recorded `fit_stats_["cross_validate_calls"] = 180`. With early stopping active, `fit_stats_["cross_validate_calls"] = 83`:
+   $$\text{Measured Reduction in Actual CV Calls} = 1 - \frac{83}{180} \approx 53.9\%$$
+
+Both the analytical projection (~53.6%) and the empirical baseline run (~53.9%) confirm that early stopping saved over half the cross-validation workload without degrading validation or test metrics.
 
 The best hyperparameters identified by evolutionary selection:
 ```python
