@@ -63,13 +63,13 @@ A common challenge with heuristic optimization is selecting the right generation
 `sklearn-genetic-opt` addresses this via the **Callbacks API** (`sklearn_genetic.callbacks`):
 
 - **`ProgressBar()`**: Real-time terminal progress bar powered by `tqdm`, displaying elapsed time, remaining iterations, and generation speeds.
-- **`ConsecutiveStopping(generations=N, metric="fitness")`**: Halts the evolutionary loop if the monitored metric does not improve for `N` consecutive generations.
-  - **API Detail**: In `sklearn-genetic-opt`, the default `metric="fitness"` corresponds to the **population mean fitness** (the average CV score across all individuals in that generation). This monitors whether the overall population is still making collective progress.
-  - If you want the early stopper to track only the single champion configuration instead of the population average, explicitly set `metric="fitness_best"` or `metric="fitness_max"`.
+- **`ConsecutiveStopping(generations=N, metric="fitness")`**: Halts the evolutionary loop when the current metric value is no greater than every one of the previous `N` values.
+  - **Implementation & Stopping Rule**: Unlike conventional patience that counts epochs since the last best improvement, `ConsecutiveStopping` stops only when the current metric is less than or equal to each of the preceding `N` values (`all(stat >= current_stat for stat in stats)`). If a slight rebound occurs in a generation, the condition is not satisfied and the search continues even if no new global best was achieved.
+  - **Metric Selection**: By default, `metric="fitness"` tracks the **population mean fitness** (the average CV score across all individuals in that generation), checking whether collective population progress has stalled. To apply this comparison to the generation champion instead, explicitly set `metric="fitness_best"` or `metric="fitness_max"`.
 - **`TimerStopping(total_seconds=S)`**: Sets a soft time budget for optimization.
   - **API Detail**: When `total_seconds` expires, the optimizer ceases scheduling new candidate generation batches. However, in-flight cross-validation fold evaluations within the current generation and the final best-estimator refit are allowed to finish gracefully. As a result, total wall-clock time may slightly exceed `total_seconds` rather than terminating via an abrupt, mid-calculation process kill.
 - **`DeltaThreshold(threshold=0.001)`**: Stops optimization if the rate of metric improvement between generations falls below a specified minimum difference.
-- **`ModelCheckpoint(filepath="checkpoint.pkl")`**: Periodically persists intermediate results to disk.
+- **`ModelCheckpoint(checkpoint_path="checkpoint.pkl")`**: Periodically persists intermediate results to disk.
 
 By combining `ConsecutiveStopping` with `TimerStopping`, you can set generous generation limits (`generations=30`) with the confidence that the search will exit automatically once improvements plateau or time runs out.
 
@@ -124,7 +124,7 @@ param_grid = {
 # 3. Setup monitoring and early-stopping callbacks
 callbacks = [
     ProgressBar(),
-    ConsecutiveStopping(generations=4, metric="fitness"),
+    ConsecutiveStopping(generations=4, metric="fitness"),  # Stops when current mean <= each of previous 4 values
     TimerStopping(total_seconds=120)  # Stop scheduling new batches after 120s
 ]
 
@@ -188,8 +188,8 @@ INFO: Stopping the algorithm
    - Thanks to elitism (`elitism=True`), the champion candidate (`0.98997`) was preserved intact.
    - However, the population mean (`avg`) plateaued at `0.98859` in Generation 3, before slightly drifting to `0.98760` and `0.98744` as exploration saturated around the local basin.
 3. **Early Termination**:
-   - Because `ConsecutiveStopping(generations=4, metric="fitness")` checks whether the current generation's mean fitness exceeds the past 4 generations, it detected that the swarm was no longer making mean improvements.
-   - The callback fired after Generation 5, terminating the search early and avoiding unnecessary iterations.
+   - At Generation 5, the population mean (`avg = 0.98744`) was no greater than every one of the previous 4 generation values (Gen 1: `0.98762`, Gen 2: `0.98839`, Gen 3: `0.98859`, Gen 4: `0.98760`).
+   - Because `all(stat >= current_stat for stat in stats)` evaluated to `True`, `ConsecutiveStopping` met its criteria and halted the search at Generation 5—avoiding 7 unnecessary generations without waiting for the full 12 generations.
 
 ---
 
@@ -271,9 +271,10 @@ weighted avg       0.96      0.96      0.96       143
 When applying `sklearn-genetic-opt` in your own machine learning pipelines:
 
 1. **Leverage Elitism (`elitism=True`)**: Always retain elitism so that the best candidate from generation \(k\) is guaranteed to survive into generation \(k+1\). This protects against stochastic degradation.
-2. **Align Your Stopping Metric**:
-   - Use `metric="fitness"` (default) to stop when the **population mean** stagnates.
-   - Use `metric="fitness_best"` or `metric="fitness_max"` if you want to stop strictly when the **single top individual** stops improving.
+2. **Align Your Stopping Metric and Mechanism**:
+   - Remember that `ConsecutiveStopping` halts when the current metric is no greater than every one of the previous `N` values (rather than conventional patience since the last best improvement). A small rebound resets the comparison.
+   - Use `metric="fitness"` (default) to monitor whether the **population mean** is no longer exceeding any of the last `N` generations.
+   - Use `metric="fitness_best"` or `metric="fitness_max"` if you want this check applied to the **generation champion**.
 3. **Remember TimerStopping Is a Soft Boundary**: Because `TimerStopping` allows the active generation and final refit to conclude cleanly, factor in generation evaluation times when budgeting tight wall-clock limits.
 4. **Tune Continuous Parameters with Log-Uniform**: For regularization terms (`C`, `alpha`) and learning rates, log-uniform sampling explores across orders of magnitude much more systematically than uniform sampling.
 5. **Take Advantage of Parallelism (`n_jobs=-1`)**: Since candidate evaluations within a generation are embarrassingly parallel, setting `n_jobs=-1` distributes fold fits across all available CPU cores.

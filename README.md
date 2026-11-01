@@ -14,7 +14,7 @@ This repository provides a hands-on guide and runnable Python implementation exp
 - **Moving Beyond Grid and Random Search**: How evolutionary algorithms balance exploration and exploitation across non-linear hyperparameter surfaces.
 - **Designing Custom Search Spaces**: Defining `Integer`, `Continuous` (uniform vs. log-uniform), and `Categorical` distributions with `sklearn_genetic.space`.
 - **Intelligent Early Stopping**: Preventing wasted compute using `ConsecutiveStopping`, `ProgressBar`, and `TimerStopping`.
-- **API Specifics**: Understanding population mean tracking (`metric="fitness"`) vs. generation champions (`metric="fitness_best"`), and graceful completion in `TimerStopping`.
+- **API Specifics**: Understanding `ConsecutiveStopping` comparison logic (`metric <= past N values`), population mean tracking (`metric="fitness"`) vs. generation champions (`metric="fitness_best"`), and graceful completion in `TimerStopping`.
 - **Measured Compute Savings**: How early stopping saved over 53% of candidate evaluation rounds and cross-validation fits compared to the planned search budget.
 
 ---

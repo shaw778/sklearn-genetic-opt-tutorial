@@ -54,7 +54,7 @@ def main():
         TimerStopping(total_seconds=120)  # Soft time budget
     ]
     print("  - ProgressBar(): Visual progress bar")
-    print("  - ConsecutiveStopping(generations=4, metric='fitness'): Halts if population mean fitness stagnates for 4 rounds")
+    print("  - ConsecutiveStopping(generations=4, metric='fitness'): Halts when current mean fitness is <= each of the previous 4 generation values")
     print("  - TimerStopping(total_seconds=120): Stops scheduling new batches after 120s; allows in-flight batch and refit to finish")
 
     # 4. Initialize and Fit GASearchCV
